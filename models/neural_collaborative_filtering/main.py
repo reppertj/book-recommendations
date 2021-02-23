@@ -1,5 +1,7 @@
+import os
 import torch
 import tqdm
+import boto3 as aws
 from sklearn.metrics import roc_auc_score
 from torch.utils.data import DataLoader
 
@@ -8,6 +10,15 @@ from NeuralCF import NeuralCollaborativeFiltering
 
 import wandb
 
+
+def download_data(save_path, file_key, bucket):
+    access_key = os.environ.get("AWS_ACCESS_KEY")
+    secret_key = os.environ.get("AWS_SECRET")
+    s3 = aws.client(
+        "s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key
+    )
+    response = s3.download_file(bucket, file_key, save_path)
+    return save_path, response
 
 
 def get_dataset(name, path, test=False):
@@ -126,6 +137,8 @@ def main(
     device = torch.device(device)
 
     # Get the dataset
+    if not os.path.exists(dataset_path):
+        download_data("bookrec_data", "explicit_dataset.npz", dataset_path)
     dataset = get_dataset(dataset_name, dataset_path)
     # Split the data into 80% train, 20% validation
     train_length = int(len(dataset) * 0.8)
@@ -173,13 +186,15 @@ def main(
 
 
 if __name__ == "__main__":
-    
+
     wandb.init(project="multi_layer_perceptron_collaborative_filtering")
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_name", default="books")
-    parser.add_argument("--dataset_path", default="../../data/processed/explicit_dataset.npz")
+    parser.add_argument(
+        "--dataset_path", default="../../data/processed/explicit_dataset.npz"
+    )
     parser.add_argument("--model_name", default="ncf")
     parser.add_argument("--epoch", type=int, default=100)
     parser.add_argument("--learning_rate", type=float, default=0.001)
@@ -200,4 +215,3 @@ if __name__ == "__main__":
         args.device,
         args.save_dir,
     )
-
